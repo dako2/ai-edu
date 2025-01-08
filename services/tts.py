@@ -1,6 +1,8 @@
+import pyttsx3
+
 class TTSService:
     def __init__(self):
-        import pyttsx3
+        
         self.engine = pyttsx3.init()
         # Set the speaking rate (optional)
         self.engine.setProperty('rate', 180)  # Adjust the rate as needed

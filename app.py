@@ -1,4 +1,4 @@
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, render_template
 from flask_socketio import SocketIO
 from services.gslides import GoogleSlideService
 
@@ -33,6 +33,7 @@ def update_cache():
     """
     slides = fetch_slides()
     return jsonify({"message": "Cache updated", "slides": slides})
+ 
 
 @app.route('/')
 def index():
