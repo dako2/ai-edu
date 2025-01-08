@@ -1,27 +1,35 @@
-from core.fsm import SlideNarrationFSM
-from services.slide_control import SlideService
-from services.tts import TTSService
-from services.state_manager import StateManager
 import threading
+from core.fsm import SlideNarrationFSM
+from services.question_handler import QuestionHandler
+from services.tts import TTSService
+from services.gslides import GoogleSlideService
+from services.control_slide import ControlSlide
 
-def listen_for_questions(slide_service, fsm):
-    """Background thread for listening to questions."""
-    while fsm.running:
-        try:
-            question = input("Enter a question (or leave blank to continue): ").strip()
-            if question:
-                slide_service.add_question(question)
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            fsm.running = False
+credentials_file = "secrets/closeby-440718-dd98e45706c2.json"
+presentation_id = "1xyLjzu7KcvRCn5eDQmTCP_FanifShm9wPZwqyGgAq0E"
 
-if __name__ == "__main__":
-    slide_service = SlideService()
-    tts_service = TTSService()
-    state_service = StateManager()
+# Instantiate mock services
+slide_service = GoogleSlideService(credentials_file, presentation_id)
+tts_service = TTSService()
 
-    fsm = SlideNarrationFSM(slide_service, tts_service, state_service)
+server_url = "http://localhost:5001"
+control_slide = ControlSlide(server_url)  # Use ControlSlide with the Flask server URL
 
-    # Start a background thread for question listening
-    threading.Thread(target=listen_for_questions, args=(slide_service, fsm), daemon=True).start()
+# Create the FSM and question handler
+question_handler = QuestionHandler(tts_service)
+fsm = SlideNarrationFSM(slide_service, tts_service, question_handler, control_slide)
+
+# Start the question listener in a separate thread
+question_listener_thread = threading.Thread(target=question_handler.listen_for_questions, daemon=True)
+question_listener_thread.start()
+
+# Run the FSM
+try:
     fsm.start()
+except KeyboardInterrupt:
+    print("\n[Interrupt] Session terminated by the user.")
+finally:
+    # Stop the question handler gracefully
+    question_handler.running = False
+    question_listener_thread.join()
+    print("Application exited.")
