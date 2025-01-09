@@ -25,11 +25,6 @@ class SlideNarrationFSM:
 
         self.question_handler = question_handler  # Queue to hold user questions
 
-        # Initialize SpeakerNotesMapper and TTSGenerator
-        mapper = SpeakerNotesMapper(self.speaker_notes, output_dir="../assets/audio/")
-        tts_generator = TTSGenerator(api_key=os.getenv("OPENAI_API_KEY"), output_dir="../assets/audio/")
-
-
     def save_state(self):
         """Save the current state to a file."""
         state_data = {
