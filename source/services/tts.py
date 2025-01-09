@@ -10,7 +10,7 @@ import openai
 load_dotenv()
 
 class TTSService:
-    def __init__(self, api_key=None, model="tts-1", voice="alloy", audio_filename="speech.mp3"):
+    def __init__(self, api_key=None, model="tts-1", voice="alloy", output_dir="assets/audio/"):
         """
         Initialize the hypothetical OpenAI TTS service.
         
@@ -26,9 +26,40 @@ class TTSService:
         
         self.model = model
         self.voice = voice
-        self.audio_path = Path(audio_filename)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def play(self, text):
+    def generate_mapping(self, speaker_notes):
+        """Create an initial mapping between speaker notes and audio files."""
+        mapping = []
+        for i, note in enumerate(self.speaker_notes, start=1):
+            audio_filename = f"speech_{i}.wav"
+            mapping.append({
+                "speaker_note": note,
+                "audio_file": str(self.output_dir / audio_filename),
+                "is_generated": False,
+            })
+        return mapping
+
+    def generate(self, text, audio_path):
+        try:
+            # Hypothetical TTS API call
+            response = self.client.audio.speech.create(
+                model=self.model, voice=self.voice, input=text
+            )
+            response.stream_to_file(audio_path)
+            return True
+            
+        except AttributeError:
+            print("Error: OpenAI TTS endpoint is not available. This code is hypothetical.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        return False
+
+    def play(self, audio_path):
+        playsound(str(audio_path))
+
+    def play_text(self, text):
         """
         Hypothetically generate speech for the provided text using OpenAI's TTS endpoint,
         save it to an MP3 file, and play the audio.

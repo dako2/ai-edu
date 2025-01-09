@@ -1,5 +1,6 @@
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from core.slide_data import SlideData  # Importing the unified data structure
 
 class GoogleSlideService:
     def __init__(self, credentials_file, presentation_id):
@@ -10,25 +11,29 @@ class GoogleSlideService:
         self.service = build('slides', 'v1', credentials=self.credentials)
         self.presentation_id = presentation_id
 
-        self.total_slides = self.total_slides()
+        # Fetch slide data as a list of SlideData instances
+        self.slides = self.get_slides()
+        self.total_slides = len(self.slides)
 
-        ##qi tang WIP
-        self.slide_data = self.get_slides()
-        self.speaker_notes = [x["speaker_notes"] for x in self.slide_data]
+        
 
     def get_slides(self):
-        """Fetch all slides in the presentation, including speaker notes."""
-        presentation = self.service.presentations().get(presentationId=self.presentation_id).execute()
+        """Fetch all slides in the presentation, including speaker notes and slide IDs."""
+        presentation = self.service.presentations().get(
+            presentationId=self.presentation_id
+        ).execute()
         slides = presentation.get('slides', [])
-        slide_data = []
+        slide_data_list = []
         for idx, slide in enumerate(slides):
             speaker_notes = self._get_speaker_notes(slide)
-            slide_data.append({
-                "slide_index": idx,
-                "elements": slide.get('pageElements', []),
-                "speaker_notes": speaker_notes
-            })
-        return slide_data
+            slide_obj = SlideData(
+                slide_index=idx,
+                object_id=slide.get('objectId'),  # Capture the real slide ID
+                elements=slide.get('pageElements', []),
+                speaker_notes=speaker_notes
+            )
+            slide_data_list.append(slide_obj)
+        return slide_data_list
 
     def _get_speaker_notes(self, slide):
         """Extract speaker notes from a slide."""
@@ -42,16 +47,10 @@ class GoogleSlideService:
                     text += text_element['textRun']['content']
         return text
 
-    def total_slides(self):
-        """Return the total number of slides in the presentation."""
-        slides = self.get_slides()
-        return len(slides)
-
-    def get_speaker_notes(self, slide_index):
-        """Retrieve the speaker notes for a specific slide."""
-        slides = self.get_slides()
-        if 0 <= slide_index < len(slides):
-            return slides[slide_index]['speaker_notes']
+    def get_speaker_notes_for_slide(self, slide_index):
+        """Retrieve the speaker notes for a specific slide using unified structure."""
+        if 0 <= slide_index < len(self.slide_data):
+            return self.slide_data[slide_index].speaker_notes
         else:
             return {"error": "Invalid slide index."}
 
@@ -66,7 +65,8 @@ class GoogleSlideService:
         }]
         body = {'requests': requests}
         response = self.service.presentations().batchUpdate(
-            presentationId=self.presentation_id, body=body).execute()
+            presentationId=self.presentation_id, body=body
+        ).execute()
 
         # Add speaker notes to the newly created slide
         new_slide_id = response['replies'][0]['createSlide']['objectId']
@@ -100,7 +100,8 @@ class GoogleSlideService:
         }]
         body = {'requests': requests}
         self.service.presentations().batchUpdate(
-            presentationId=self.presentation_id, body=body).execute()
+            presentationId=self.presentation_id, body=body
+        ).execute()
 
     def show_slide(self, slide_index, mode='embed'):
         """
@@ -113,7 +114,7 @@ class GoogleSlideService:
             presentation = self.service.presentations().get(
                 presentationId=self.presentation_id
             ).execute()
-            slides = presentation['slides']
+            slides = presentation.get('slides', [])
 
             if slide_index < 0 or slide_index >= len(slides):
                 print(f"Invalid slide index: {slide_index}. Total slides: {len(slides)}")
@@ -132,7 +133,7 @@ class GoogleSlideService:
                     f"https://docs.google.com/presentation/d/{self.presentation_id}/embed"
                     f"?start=false&loop=false&delayms=3000#slide=id.{slide_id}"
                 )
-            
+
             print(f"Slide {slide_index + 1} has objectId={slide_id}")
             print(f"URL ({mode}): {url}")
             return url
@@ -140,3 +141,12 @@ class GoogleSlideService:
         except Exception as e:
             print(f"Error showing slide: {e}")
             return None
+        
+if __name__ == "__main__":
+
+    credentials_file = "secrets/closeby-440718-dd98e45706c2.json"
+    presentation_id = "1xyLjzu7KcvRCn5eDQmTCP_FanifShm9wPZwqyGgAq0E"
+
+    # Instantiate mock services
+    slide_service = GoogleSlideService(credentials_file, presentation_id)
+    a = slide_service.slides[1].speaker_notes
