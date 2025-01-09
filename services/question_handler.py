@@ -2,7 +2,6 @@ import threading
 from queue import Queue
 import time
 
-
 class QuestionHandler:
     def __init__(self, tts_service):
         self.question_queue = Queue()

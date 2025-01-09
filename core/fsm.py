@@ -3,6 +3,7 @@ import time
 import threading
 from queue import Queue, Empty
 
+
 class SlideNarrationFSM:
     SAVE_FILE = "assets/fsm_state.json"  # File to save the state
 
@@ -17,11 +18,17 @@ class SlideNarrationFSM:
         self.current_slide = 0
         self.total_slides = self.slide_service.total_slides
         self.speaker_notes = self.slide_service.speaker_notes
+        self.slide_data = self.slide_service.slide_data
 
         self.interrupt_flag = False  # Flag to check if there are interruptions
         self.running = True  # Flag to manage the main loop
 
         self.question_handler = question_handler  # Queue to hold user questions
+
+        # Initialize SpeakerNotesMapper and TTSGenerator
+        mapper = SpeakerNotesMapper(self.speaker_notes, output_dir="../assets/audio/")
+        tts_generator = TTSGenerator(api_key=os.getenv("OPENAI_API_KEY"), output_dir="../assets/audio/")
+
 
     def save_state(self):
         """Save the current state to a file."""

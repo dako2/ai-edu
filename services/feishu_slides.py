@@ -1,7 +1,22 @@
 import requests
 
+"""
+curl -i -X POST 'https://open.feishu.cn/open-apis/drive/v1/metas/batch_query?user_id_type=user_id' \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Bearer u-fntdD58ux2P8En52GG9UKahlhANklkT1h80040cy0dGD' \
+-d '{
+	"request_docs": [
+		{
+			"doc_token": "Uc3qsFE2DlK2TxdnSOvc9UXon0d",
+			"doc_type": "doc"
+		}
+	],
+	"with_url": false
+}'
+
+"""
 class FeishuSlideService:
-    def __init__(self, access_token, presentation_id):
+    def __init__(self, access_token="t-g104189n7MKTUHCRT7CEPWRYXWNRXQBSN2LJOCF6", presentation_id="Uc3qsFE2DlK2TxdnSOvc9UXon0d"):
         """
         Initialize the FeishuSlideService with access token and presentation ID.
         """
@@ -90,3 +105,6 @@ class FeishuSlideService:
             return url
         else:
             return {"error": "Invalid slide index."}
+
+slide = FeishuSlideService()
+slide.total_slides()
