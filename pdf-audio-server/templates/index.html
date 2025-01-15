@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Slide Viewer with Audio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <style>
+        #pdf-canvas {
+            border: 1px solid black;
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="pdf-canvas"></canvas>
+    <audio id="audio-player" controls></audio>
+    <button id="prev-slide">Previous Slide</button>
+    <button id="next-slide">Next Slide</button>
+    <script src="static/js/app.js"></script>
+</body>
+<script>
+    const slides = {{ slides|tojson }};
+    console.log('Slides data:', slides); // Debugging line
+</script>
+
+</html>

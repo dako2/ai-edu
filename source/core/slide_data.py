@@ -2,22 +2,25 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import List, Any, Optional
 import json
+#from services.tts_offline import TTSService
+from services.tts import TTSService
 
 @dataclass
 class SlideData:
+    presentation_id: str
     slide_index: int
     object_id: Optional[str] = None  # New field for real slide ID
-    elements: List[Any] = field(default_factory=list)
     speaker_notes: str = ""
+    video_url: str = ""
     audio_file: Optional[Path] = None
     is_generated: bool = False
 
-    def generate_and_attach_filename(self, output_dir="assets/audio/", extension="mp3") -> str:
+    def generate_and_attach_filename(self, output_dir="services/assets/audio/", extension="mp3") -> str:
         """
         Generate a filename based on the slide_index and attach it to the slide data.
         Returns the full path as a string.
         """
-        filename = f"speech_{self.slide_index}.{extension}"
+        filename = f"openai_{self.presentation_id}_{self.slide_index}_{self.object_id}.{extension}"
         full_path = output_dir + filename
         self.audio_file = full_path
         return self.audio_file
@@ -29,7 +32,10 @@ class SlideData:
 class SlideCollection:
     def __init__(self, slides: Optional[List[SlideData]] = None):
         self.slides: List[SlideData] = slides if slides is not None else []
-
+    
+    def len(self):
+        return len(self.slides)
+    
     def add_slide(self, slide: SlideData):
         self.slides.append(slide)
 
@@ -37,7 +43,14 @@ class SlideCollection:
         if 0 <= index < len(self.slides):
             self.slides.pop(index)
 
-    def save_to_json(self, filepath: Path):
+    def tts(self):
+        for slide in self.slides:
+            tts_service = TTSService()
+            if slide.speaker_notes and not slide.is_generated:
+                tts_service.offline(slide.speaker_notes, slide.generate_and_attach_filename())
+                slide.mark_as_generated()
+
+    def save_to_json(self, filepath: Path = "services/assets/google_slides_temp.json"):
         """
         Save the current slide collection to a JSON file.
         Converts Path objects to strings for JSON serialization.

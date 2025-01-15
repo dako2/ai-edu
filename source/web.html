@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>speechSynthesis Example</title>
+</head>
+<body>
+  <h1>Speech Synthesis Example</h1>
+  <label for="text">Enter text: </label>
+  <input type="text" id="text" value="Hello, world!">
+  <button id="speakButton">Speak</button>
+
+  <script>
+    // Check if the browser supports speechSynthesis
+    if (!('speechSynthesis' in window)) {
+      alert('Sorry, your browser does not support speech synthesis.');
+    }
+
+    document.getElementById('speakButton').addEventListener('click', function() {
+      const text = document.getElementById('text').value;
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Optional: set language, voice, or other properties
+      utterance.lang = 'zh';
+      
+      // Speak the text
+      speechSynthesis.speak(utterance);
+    });
+  </script>
+</body>
+</html>
+
+

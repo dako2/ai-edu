@@ -1,3 +1,5 @@
+#if offline, foldback to pytts3 model; else, use tts 
+
 import os
 import json
 from pathlib import Path
@@ -41,7 +43,7 @@ class TTSService:
             })
         return mapping
 
-    def generate(self, text, audio_path):
+    def offline(self, text, audio_path):
         try:
             # Hypothetical TTS API call
             response = self.client.audio.speech.create(

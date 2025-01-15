@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Slides Viewer with Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+    .slide-container {
+      flex: 2;
+      padding: 10px;
+    }
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      background: #fff;
+    }
+    iframe {
+      border: none;
+      width: 100%;
+      height: 100%;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      padding: 5px;
+      margin-bottom: 10px;
+    }
+    .input-group {
+      display: flex;
+    }
+    .input-group input[type="text"] {
+      flex: 1;
+      padding: 5px;
+    }
+    .input-group button {
+      padding: 5px 10px;
+    }
+    /* Style for the Start button */
+    #startProcessButton {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 8px 16px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Start Button -->
+  <button id="startProcessButton">Start</button>
+
+  <div class="container">
+    <div class="slide-container">
+      <!-- Embed the Google Slides presentation -->
+      <iframe id="slidesIframe" src="{{ embed_url }}" allowfullscreen></iframe>
+    </div>
+    <div class="chat-container">
+      <div class="messages" id="messages"></div>
+      <div class="input-group">
+        <input type="text" id="questionInput" placeholder="Type your question..." />
+        <button id="sendButton">Send</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client/dist/socket.io.min.js"></script>
+  <script>
+    // TTSManager to handle sequential speech synthesis
+    class TTSManager {
+      constructor() {
+        this.queue = [];
+        this.isSpeaking = false;
+      }
+
+      speak(text, lang = 'en-US') {
+        // Add the new request to the queue
+        this.queue.push({ text, lang });
+        this.processQueue();
+      }
+
+      processQueue() {
+        // If already speaking or queue is empty, do nothing
+        if (this.isSpeaking || this.queue.length === 0) return;
+
+        this.isSpeaking = true;
+        const { text, lang } = this.queue.shift();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang;
+
+        // Select a voice matching the language, if desired
+        // const voices = speechSynthesis.getVoices();
+        // utterance.voice = voices.find(v => v.lang === lang) || null;
+
+        utterance.onend = () => {
+          this.isSpeaking = false;
+          this.processQueue();
+        };
+
+        utterance.onerror = (e) => {
+          console.error('SpeechSynthesis error:', e.error);
+          this.isSpeaking = false;
+          this.processQueue();
+        };
+
+        speechSynthesis.speak(utterance);
+      }
+    }
+
+    // Initialize a single shared TTS manager for the page
+    const ttsManager = new TTSManager();
+
+    const socket = io();
+
+    // Update slide when server notifies clients
+    socket.on('slide_update', (data) => {
+      const iframe = document.getElementById('slidesIframe');
+      iframe.src = `https://docs.google.com/presentation/d/{{ presentation_id }}/embed?start=false&loop=false&delayms=10#slide=id.${data.objectId}`;
+    });
+
+    // Chat functionality
+    const messagesDiv = document.getElementById('messages');
+    const questionInput = document.getElementById('questionInput');
+    const sendButton = document.getElementById('sendButton');
+
+    // Function to append a new message and optionally speak it
+    function appendMessage(text, sender = "系统", speakIt = false) {
+      const msgElem = document.createElement('div');
+      msgElem.textContent = sender + ": " + text;
+      messagesDiv.appendChild(msgElem);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      if (speakIt) {
+        ttsManager.speak(text, "zh-CN"); // Modify language as needed
+      }
+    }
+
+    sendButton.addEventListener('click', () => {
+      const question = questionInput.value.trim();
+      if (question) {
+        // Immediately display the question in the chatbox
+        appendMessage(question, "You");
+
+        // Send the question to the server via HTTP POST
+        fetch('/new_question', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.answer) {
+            // Display and speak the answer once it's received from the server
+            appendMessage(data.answer, "Answer", true);
+          } else if (data.error) {
+            appendMessage("Error: " + data.error, "System");
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          appendMessage("Error sending question: " + error, "System");
+        });
+
+        questionInput.value = '';
+      }
+    });
+
+    questionInput.value = '';
+
+    // Start button functionality
+    const startButton = document.getElementById('startProcessButton');
+    startButton.addEventListener('click', () => {
+      fetch('/start', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+          console.log(data.message);
+          appendMessage(data.message, "系统", true);
+        })
+        .catch(error => {
+          console.error('Error starting process:', error);
+          appendMessage("Error starting main.py: " + error, "系统");
+        });
+    });
+
+    appendMessage("等待课堂开始。", "系统", true);
+  </script>
+</body>
+</html>

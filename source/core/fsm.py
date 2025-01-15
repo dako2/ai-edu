@@ -1,3 +1,4 @@
+#slide logic, start -> narratating slides in sequence -> if question, then answer -> continue the narrating 
 import json
 import time
 import threading
@@ -52,13 +53,22 @@ class SlideNarrationFSM:
         self.transition("SLIDE_NARRATION")
 
     def slide_narration(self):
+        
         while self.current_slide < self.total_slides and self.running:
 
             slide_text = self.slide_service.slides[self.current_slide].speaker_notes
-            print(f"\n[Slide {self.current_slide + 1}] Narrating: {slide_text}")
+
+            if not slide_text: 
+                slide_text = "No text"
+            # If we have SocketIO, emit the answer back to the browser
+
+            #print(f"\n[Slide {self.current_slide + 1}] Narrating: {slide_text}")
             
             self.control_slide.navigate_slide(self.current_slide)
-            self.tts_service.play(self.slide_service.slides[self.current_slide].audio_file)
+            #self.tts_service.play(self.slide_service.slides[self.current_slide].audio_file)
+       
+            self.tts_service.play(slide_text)
+            #self.control_slide.next_slide()
             
             if not self.question_handler.question_queue.empty():
                 self.interrupt_flag = True
@@ -67,13 +77,17 @@ class SlideNarrationFSM:
             if self.interrupt_flag:
                 self.transition("QUESTION")
                 return  # Exit the loop to handle the question
-
             self.current_slide += 1  # Increment slide after narration completes
-
         self.transition("END")
 
     def question(self):
+        """
+        Handle the question(s) in the queue *before* resuming.
+        For example, process all queued questions one by one.
+        """
+        print("\n[QUESTION] Handling user question(s).")
         self.question_handler.process_questions()
+        # After finishing Q&A, move to 'RESUME'
         self.transition("RESUME")
 
     def resume(self):

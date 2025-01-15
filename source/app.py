@@ -1,6 +1,9 @@
 from flask import Flask, Response, jsonify, request, render_template
 from flask_socketio import SocketIO
-from services.gslides import GoogleSlideService
+from services.google_slides import GoogleSlideService
+import subprocess
+from services.container import question_handler
+from services.control_slide import ControlSlide
 
 app = Flask(__name__)
 
@@ -12,7 +15,7 @@ current_slide_index = 0
 
 service = GoogleSlideService(
     credentials_file="secrets/closeby-440718-dd98e45706c2.json",
-    presentation_id="1xyLjzu7KcvRCn5eDQmTCP_FanifShm9wPZwqyGgAq0E"
+    presentation_id="1cnaNzoYKHz2A-gbJ-9EJEaQT8L-uN2FDzNQOBy3lIbE"
 )
 
 def fetch_slides():
@@ -34,12 +37,8 @@ def update_cache():
     slides = fetch_slides()
     return jsonify({"message": "Cache updated", "slides": slides})
  
-
 @app.route('/')
 def index():
-    """
-    Serve the main page with the current slide.
-    """
     slides = slide_cache.get('slides', fetch_slides())
 
     # Fallback if out of range
@@ -48,38 +47,12 @@ def index():
     else:
         actual_slide_id = slides[current_slide_index]['objectId']
 
+    # Determine actual_slide_id as before...
     embed_url = (
         f"https://docs.google.com/presentation/d/{service.presentation_id}/embed"
         f"?start=false&loop=false&delayms=10#slide=id.{actual_slide_id}"
     )
-
-    html_content = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Google Slides Viewer</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; }}
-        iframe {{ border: none; width: 100%; height: 600px; max-width: 900px; }}
-    </style>
-</head>
-<body>
-    <iframe id="slidesIframe" src="{embed_url}" allowfullscreen></iframe>
-    <script src="https://cdn.jsdelivr.net/npm/socket.io-client/dist/socket.io.min.js"></script>
-
-    <script>
-        const socket = io();
-        socket.on('slide_update', (data) => {{
-            const iframe = document.getElementById('slidesIframe');
-            iframe.src = `https://docs.google.com/presentation/d/{service.presentation_id}/embed?start=false&loop=false&delayms=10#slide=id.${{data.objectId}}`;
-        }});
-    </script>
-</body>
-</html>
-    """
-    return Response(html_content, mimetype='text/html')
+    return render_template('index.html', embed_url=embed_url, presentation_id=service.presentation_id)
 
 @app.route('/set_slide_number/<int:slide>', methods=['POST'])
 def set_slide_number(slide):
@@ -104,6 +77,44 @@ def get_slide_index():
     global current_slide_index
     return jsonify({"slideIndex": current_slide_index})
 
+@app.route('/new_question', methods=['POST'])
+def new_question():
+    data = request.get_json()  # Expecting JSON data from the client
+    question = data.get('question')
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+    print(f"Received new question: {question}")
+    # Enqueue the question to be processed by QuestionHandler
+    question_handler.enqueue_question(question)
+    # Process the question immediately (optional synchronous processing)
+    answer = question_handler.process_questions()
+    
+    # Respond with the answer
+    return jsonify({"answer": answer})
+ 
+"""
+@app.route('/start', methods=['POST'])
+def start_main():
+    try:
+        # Start main.py using subprocess
+        process = subprocess.Popen(["python", "main.py"])
+        return jsonify({"message": "main.py started", "pid": process.pid})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500"""
+
+server_url = "http://localhost:8000"
+control_slide = ControlSlide(server_url)
+
+@app.route('/api/slides', methods=['GET'])
+def get_slides():
+    slides_data = [{
+        'speakerNotes': slide.speaker_notes
+    } for slide in service.slides]
+    return jsonify({
+        'slides': slides_data,
+        'totalSlides': len(slides_data)
+    })
+
 if __name__ == '__main__':
     # Run the app with WebSocket support
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8000, debug=True)

@@ -1,6 +1,6 @@
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from core.slide_data import SlideData  # Importing the unified data structure
+from core.slide_data import SlideData, SlideCollection
 
 class GoogleSlideService:
     def __init__(self, credentials_file, presentation_id):
@@ -9,31 +9,34 @@ class GoogleSlideService:
             scopes=["https://www.googleapis.com/auth/presentations"]
         )
         self.service = build('slides', 'v1', credentials=self.credentials)
-        self.presentation_id = presentation_id
-
         # Fetch slide data as a list of SlideData instances
-        self.slides = self.get_slides()
-        self.total_slides = len(self.slides)
+        self.slides = self.get_slides(presentation_id)
+        self.total_slides = self.slides.len()
 
-        
-
-    def get_slides(self):
+    def get_slides(self, presentation_id):        
         """Fetch all slides in the presentation, including speaker notes and slide IDs."""
-        presentation = self.service.presentations().get(
+        self.presentation_id = presentation_id
+        self.presentation = self.service.presentations().get(
             presentationId=self.presentation_id
         ).execute()
-        slides = presentation.get('slides', [])
-        slide_data_list = []
+
+        slides = self.presentation.get('slides', [])
+        self.slide_data_list = SlideCollection()
         for idx, slide in enumerate(slides):
             speaker_notes = self._get_speaker_notes(slide)
+            video_url = extract_video_url(slide)
             slide_obj = SlideData(
+                presentation_id=presentation_id,
                 slide_index=idx,
                 object_id=slide.get('objectId'),  # Capture the real slide ID
-                elements=slide.get('pageElements', []),
+                video_url=video_url,
                 speaker_notes=speaker_notes
             )
-            slide_data_list.append(slide_obj)
-        return slide_data_list
+            self.slide_data_list.add_slide(slide_obj)
+
+        self.slide_data_list.save_to_json()
+
+        return self.slide_data_list
 
     def _get_speaker_notes(self, slide):
         """Extract speaker notes from a slide."""
@@ -73,36 +76,6 @@ class GoogleSlideService:
         self._add_speaker_notes(new_slide_id, speaker_notes)
         return response
 
-    def _add_speaker_notes(self, slide_id, notes):
-        """Add speaker notes to a specific slide."""
-        requests = [{
-            'createShape': {
-                'objectId': f"{slide_id}_notes",
-                'shapeType': 'TEXT_BOX',
-                'elementProperties': {
-                    'pageObjectId': slide_id,
-                    'size': {
-                        'height': {'magnitude': 100, 'unit': 'PT'},
-                        'width': {'magnitude': 300, 'unit': 'PT'}
-                    },
-                    'transform': {
-                        'scaleX': 1, 'scaleY': 1,
-                        'translateX': 100, 'translateY': 400,
-                        'unit': 'PT'
-                    }
-                }
-            }
-        }, {
-            'insertText': {
-                'objectId': f"{slide_id}_notes",
-                'text': notes
-            }
-        }]
-        body = {'requests': requests}
-        self.service.presentations().batchUpdate(
-            presentationId=self.presentation_id, body=body
-        ).execute()
-
     def show_slide(self, slide_index, mode='embed'):
         """
         Return a URL that opens the presentation at the specified slide index.
@@ -141,12 +114,25 @@ class GoogleSlideService:
         except Exception as e:
             print(f"Error showing slide: {e}")
             return None
-        
+
+def extract_video_url(slide):
+    """
+    Extract video URLs from a slide if present.
+    """
+    page_elements = slide.get('pageElements', [])
+    for element in page_elements:
+        video = element.get('video')
+        if video and isinstance(video, dict):  # Ensure video is a dictionary
+            # Extract the video URL (Google Drive preview or YouTube link)
+            source_url = video.get('url')  # Adjust key based on actual structure
+            if source_url:
+                return source_url
+    return None
+    
 if __name__ == "__main__":
 
-    credentials_file = "secrets/closeby-440718-dd98e45706c2.json"
-    presentation_id = "1xyLjzu7KcvRCn5eDQmTCP_FanifShm9wPZwqyGgAq0E"
+    credentials_file = "../source/secrets/closeby-440718-dd98e45706c2.json"
+    presentation_id = "1cnaNzoYKHz2A-gbJ-9EJEaQT8L-uN2FDzNQOBy3lIbE"
 
     # Instantiate mock services
     slide_service = GoogleSlideService(credentials_file, presentation_id)
-    a = slide_service.slides[1].speaker_notes
